@@ -9,6 +9,7 @@ clock. The entry is the line at CANDIDATES[SELECTED], written to
 trailing newline, so the file is exactly the line, byte for byte.
 """
 
+import hashlib
 import os
 
 CANDIDATES = [
@@ -39,12 +40,20 @@ def main() -> None:
     out_path = os.path.join(out_dir, "entry.txt")
     with open(out_path, "w", encoding="utf-8") as f:
         f.write(entry)
-    with open(out_path, "r", encoding="utf-8") as f:
-        written = f.read()
-    # Read-back verification: the file on disk must be exactly the
-    # selected line, byte for byte, or the run fails loudly.
-    if written != entry:
-        raise SystemExit("read-back mismatch: entry.txt != selected line")
+    with open(out_path, "rb") as f:
+        written_bytes = f.read()
+    # Read-back verification, digest-based: hash the raw bytes found
+    # on disk and hash the raw bytes of the intended line; the file
+    # is accepted only when the two SHA-256 digests are identical,
+    # which proves a byte-for-byte match without comparing the
+    # decoded strings directly. Any mismatch fails the run loudly.
+    written_digest = hashlib.sha256(written_bytes).hexdigest()
+    intended_digest = hashlib.sha256(entry.encode("utf-8")).hexdigest()
+    if written_digest != intended_digest:
+        raise SystemExit(
+            f"read-back mismatch: sha256(entry.txt)={written_digest} "
+            f"!= sha256(selected line)={intended_digest}"
+        )
 
 
 if __name__ == "__main__":
